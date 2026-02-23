@@ -2,6 +2,8 @@ import sys
 import xml.etree.ElementTree as ET
 
 # Define XML namespace for easier parsing. This must match the namespace in the XML report.
+# The version in the namespace might change, so it's good practice to inspect the generated XML.
+# For current OWASP Dependency Check versions, this is typical.
 NAMESPACE = {'ns': 'https://jeremylong.github.io/DependencyCheck/dependency-check.2.7.xsd'}
 
 def get_severity_score_and_category(vulnerability_node):
@@ -95,6 +97,7 @@ def parse_report(xml_file_path):
 
     dependencies = root.find('ns:dependencies', NAMESPACE)
     if dependencies is None:
+        print("Warning: No 'dependencies' section found in the XML report.", file=sys.stderr)
         return vulnerabilities # No dependencies section found
 
     for dependency in dependencies.findall('ns:dependency', NAMESPACE):
@@ -106,13 +109,18 @@ def parse_report(xml_file_path):
         vuln_nodes = dependency.find('ns:vulnerabilities', NAMESPACE)
         if vuln_nodes is not None:
             for vuln in vuln_nodes.findall('ns:vulnerability', NAMESPACE):
-                cve_id = vuln.find('ns:name', NAMESPACE).text if vuln.find('ns:name', NAMESPACE) is not None else "N/A"
+                cve_id_node = vuln.find('ns:name', NAMESPACE)
+                cve_id = cve_id_node.text if cve_id_node is not None else "N/A"
+                
                 cvss_score, severity_category = get_severity_score_and_category(vuln)
                 remediation = get_remediation_suggestion(vuln)
                 
                 # The full dependency path (e.g., A -> B -> C) is not directly in the OWASP XML for the vulnerable component.
                 # It identifies the artifact itself. Users need to cross-reference dependency-tree.txt for full context.
                 dependency_path_note = f"Vulnerable artifact: {artifact_name} (Refer to target/security-audit/dependency-tree.txt for full path)"
+
+                # Direct analysis from pom.xml is not explicitly done here, but the artifact name is provided.
+                # A more advanced solution would parse pom.xml or use Maven plugins to link pom entries to CVEs.
 
                 vulnerabilities[severity_category].append({
                     "cve_id": cve_id,
@@ -142,29 +150,36 @@ def main():
     # Order by severity: Critical, High, Medium, Low (as per requirements)
     severity_order = ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
 
+    has_vulnerabilities = False
     for severity in severity_order:
         if parsed_vulnerabilities[severity]:
-            print(f"--- {severity} VULNERABILITIES ({len(parsed_vulnerabilities[severity])}) ---\n")
+            has_vulnerabilities = True
+            print(f"--- {severity} VULNERABILITIES ({len(parsed_vulnerabilities[severity])}) ---
+")
             for vuln in parsed_vulnerabilities[severity]:
                 print(f"  CVE ID: {vuln['cve_id']}")
                 print(f"  Severity Score (CVSS): {vuln['severity_score']:.1f} ({severity})")
                 print(f"  Dependency Path: {vuln['dependency_path']}")
                 print(f"  Remediation Suggestion: {vuln['remediation_suggestion']}\n")
-            print("-" * 60 + "\n")
+            print("---" * 20 + "\n")
         else:
-            print(f"--- No {severity} vulnerabilities found. ---\n")
+            print(f"--- No {severity} vulnerabilities found. ---
+")
 
     # Include INFO findings if any, for completeness, but after the main categories
-    if parsed_vulnerabilities.get("INFO"):
-        if parsed_vulnerabilities["INFO"]:
-            print(f"--- INFORMATIONAL FINDINGS ({len(parsed_vulnerabilities['INFO'])}) ---\n")
-            for vuln in parsed_vulnerabilities['INFO']:
-                print(f"  CVE ID: {vuln['cve_id']}")
-                print(f"  Severity Score (CVSS): {vuln['severity_score']:.1f} (INFO)")
-                print(f"  Dependency Path: {vuln['dependency_path']}")
-                print(f"  Remediation Suggestion: {vuln['remediation_suggestion']}\n")
-            print("-" * 60 + "\n")
+    if parsed_vulnerabilities.get("INFO") and parsed_vulnerabilities["INFO"]:
+        has_vulnerabilities = True
+        print(f"--- INFORMATIONAL FINDINGS ({len(parsed_vulnerabilities['INFO'])}) ---
+")
+        for vuln in parsed_vulnerabilities['INFO']:
+            print(f"  CVE ID: {vuln['cve_id']}")
+            print(f"  Severity Score (CVSS): {vuln['severity_score']:.1f} (INFO)")
+            print(f"  Dependency Path: {vuln['dependency_path']}")
+            print(f"  Remediation Suggestion: {vuln['remediation_suggestion']}\n")
+        print("---" * 20 + "\n")
 
+    if not has_vulnerabilities:
+        print("No critical, high, medium, or low severity vulnerabilities found.")
 
 if __name__ == "__main__":
     main()
