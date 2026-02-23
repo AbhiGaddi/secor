@@ -1,14 +1,14 @@
 # Secor Maven Dependency Security Audit
 
-This document outlines the process and expected output for conducting a comprehensive security audit of the `AbhiGaddi/secor` Maven project's dependencies. The audit leverages OWASP Dependency-Check and Maven's built-in tools to identify vulnerabilities without making any destructive changes.
+This document outlines the process and expected output for conducting a comprehensive security audit of the `AbhiGaddi/secor` Maven project's dependencies.
 
 ## Audit Goal
 
-The primary goal is to map the entire Maven dependency tree and identify all direct and transitive dependencies with associated CVEs. The audit should leverage tools like OWASP Dependency-Check or Maven's safety plugins to pull the latest vulnerability data. The scanning process must be non-destructive, using `mvn dependency:tree` and `mvn verify` without committing or pushing any changes.
+The primary goal is to identify all direct and transitive dependencies with associated CVEs, leveraging tools like OWASP Dependency-Check. The audit process is non-destructive, ensuring no project files are committed or pushed.
 
 ## Zero-Trust Dependency Policy
 
-Adhering to the project's Zero-Trust Dependency Policy, this audit ensures that all Maven dependencies are checked against the OWASP Dependency-Check database. All new Maven dependencies must be checked against the OWASP Dependency-Check database.
+Adhering to the project's Zero-Trust Dependency Policy, this audit ensures that all Maven dependencies are checked against the OWASP Dependency-Check database.
 
 ## How to Run the Audit
 
@@ -55,7 +55,7 @@ Upon successful completion, the following reports will be generated in the `targ
     *   **Purpose:** Provides a quick overview and actionable insights, adhering to the project's standardized reporting guidelines. Each entry includes:
         *   **CVE ID:** The Common Vulnerabilities and Exposures identifier.
         *   **Severity Score (CVSS):** The Common Vulnerability Scoring System base score, categorized as Critical, High, Medium, or Low.
-        *   **Dependency Path:** Identifies the vulnerable artifact. To determine the *full* dependency path (depth) within the project (e.g., `your-project -> library-A -> vulnerable-library-X`), cross-reference the artifact name with the `dependency-tree.txt` file. 
+        *   **Dependency Path:** Identifies the vulnerable artifact. To determine the *full* dependency path (depth) within the project (e.g., `your-project -> library-A -> vulnerable-library-X`), cross-reference the artifact name with the `dependency-tree.txt` file.
         *   **Remediation Suggestion:** Proposed actions to mitigate the vulnerability, often including upgrade recommendations to patched versions.
 
 ## Understanding Dependency Paths
