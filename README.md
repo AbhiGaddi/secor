@@ -1,67 +1,102 @@
-# Secor Maven Dependency Security Audit
+# Pinterest Secor
 
-This document outlines the process and expected output for conducting a comprehensive security audit of the `AbhiGaddi/secor` Maven project's dependencies.
+[![Build Status](https://travis-ci.org/pinterest/secor.svg)](https://travis-ci.org/pinterest/secor)
 
-## Audit Goal
+Secor is a service persisting [Kafka] logs to [Amazon S3], [Google Cloud Storage], [Microsoft Azure Blob Storage] and [Openstack Swift].
 
-The primary goal is to identify all direct and transitive dependencies with associated CVEs, leveraging tools like OWASP Dependency-Check. The audit process is non-destructive, ensuring no project files are committed or pushed.
+## Key features ##
+  - **strong consistency**: as long as [Kafka] is not dropping messages (e.g., due to aggressive cleanup policy) before Secor is able to read them, it is guaranteed that each message will be saved in exactly one [S3] file. This property is not compromised by the notorious temporal inconsistency of [S3] caused by the [eventual consistency] model,
+  - **fault tolerance**: any component of Secor is allowed to crash at any given point without compromising data integrity,
+  - **load distribution**: Secor may be distributed across multiple machines,
+  - **horizontal scalability**: scaling the system out to handle more load is as easy as starting extra Secor processes. Reducing the resource footprint can be achieved by killing any of the running Secor processes. Neither ramping up nor down has any impact on data consistency,
+  - **output partitioning**: Secor parses incoming messages and puts them under partitioned s3 paths to enable direct import into systems like [Hive]. day,hour,minute level partitions are supported by secor
+  - **configurable upload policies**: commit points controlling when data is persisted in S3 are configured through size-based and time-based policies (e.g., upload data when local buffer reaches size of 100MB and at least once per hour),
+  - **monitoring**: metrics tracking various performance properties are exposed through [Ostrich], [Micrometer] and optionally exported to [OpenTSDB] / [statsD],
+  - **customizability**: external log message parser may be loaded by updating the configuration,
+  - **event transformation**: external message level transformation can be done by using customized class.
+  - **Qubole interface**: Secor connects to [Qubole] to add finalized output partitions to Hive tables.
 
-## Zero-Trust Dependency Policy
+## Release Notes
 
-Adhering to the project's Zero-Trust Dependency Policy, this audit ensures that all Maven dependencies are checked against the OWASP Dependency-Check database.
+Release Notes for past versions can be found in [RELEASE.md](RELEASE.md).
 
-## How to Run the Audit
+## Setup/Configuration Guide
 
-1.  **Prerequisites:**
-    *   **Maven:** Version 3.6.3 or higher recommended.
-    *   **Java Development Kit (JDK):** Version 8 or higher.
-    *   **Python 3:** Version 3.6 or higher (for parsing the OWASP report).
+Setup/Configuration instruction is available in [README.setup.md](README.setup.md).
 
-2.  **Navigate to Project Root:**
-    Change your current directory to the root of the `secor` Maven project. This is where the `pom.xml` file is located.
+### Secor configuration for Kubernetes/GKE environment
 
-3.  **Execute the Audit Script:**
-    Run the provided shell script from the project root:
+Extra Setup instruction for Kubernetes/GKE environment is available in [README.kubernetes.md](README.kubernetes.md).
 
-    ```bash
-    ./audit-secor-dependencies.sh
-    ```
+## Detailed design
 
-    The script will perform the following steps:
-    *   Verify `mvn` and `python3` installations.
-    *   Run `mvn clean verify` to build the project and resolve all dependencies locally.
-    *   Generate a complete Maven dependency tree (`target/security-audit/dependency-tree.txt`).
-    *   Execute OWASP Dependency-Check using its Maven plugin, generating detailed XML and HTML reports in `target/security-audit/owasp-dependency-check/`.
-    *   Parse the generated OWASP XML report using `scripts/parse_owasp_report.py` to create a structured vulnerability summary (`target/security-audit/vulnerability-summary.txt`).
+Design details are available in [DESIGN.md](DESIGN.md).
 
-## Audit Reports
+## License
 
-Upon successful completion, the following reports will be generated in the `target/security-audit/` directory:
+Secor is distributed under [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.html).
 
-1.  **`dependency-tree.txt`**
-    *   **Content:** The complete Maven dependency tree for the project, showing all direct and transitive dependencies and their hierarchical relationships.
-    *   **Purpose:** Provides context for dependency paths and helps distinguish between direct and transitive dependencies when analyzing vulnerabilities. This is crucial for understanding the full depth of a dependency path.
+## Maintainers
+  * [Pawel Garbacki](https://github.com/pgarbacki)
+  * [Henry Cai](https://github.com/HenryCaiHaiying)
 
-2.  **`owasp-dependency-check/dependency-check-report.html`**
-    *   **Content:** A comprehensive, interactive HTML report generated by OWASP Dependency-Check. This report offers a visual breakdown of all identified dependencies, their associated CVEs, CVSS scores, and potential remediation suggestions.
-    *   **Purpose:** Best for detailed review and interactive exploration of vulnerabilities, including graph visualizations and direct links to CVE details.
+## Contributors
+  * [Andy Kramolisch](https://github.com/andykram)
+  * [Brenden Matthews](https://github.com/brndnmtthws)
+  * [Lucas Zago](https://github.com/zago)
+  * [James Green](https://github.com/jfgreen)
+  * [Praveen Murugesan](https://github.com/lefthandmagic)
+  * [Zack Dever](https://github.com/zackdever)
+  * [Leo Woessner](https://github.com/estezz)
+  * [Jerome Gagnon](https://github.com/jgagnon1)
+  * [Taichi Nakashima](https://github.com/tcnksm)
+  * [Lovenish Goyal](https://github.com/lovenishgoyal)
+  * [Ahsan Nabi Dar](https://github.com/ahsandar)
+  * [Ashish Kumar](https://github.com/ashubhumca)
+  * [Ashwin Sinha](https://github.com/tygrash)
+  * [Avi Chad-Friedman](https://github.com/achad4)
 
-3.  **`owasp-dependency-check/dependency-check-report.xml`**
-    *   **Content:** The raw XML output from OWASP Dependency-Check, containing all vulnerability data in a machine-readable format.
-    *   **Purpose:** This file is parsed by the `parse_owasp_report.py` script to generate the structured summary. It can also be used for further custom analysis or integration with other tools.
 
-4.  **`vulnerability-summary.txt`**
-    *   **Content:** A structured, human-readable summary of identified vulnerabilities, categorized by severity (Critical, High, Medium, Low).
-    *   **Purpose:** Provides a quick overview and actionable insights, adhering to the project's standardized reporting guidelines. Each entry includes:
-        *   **CVE ID:** The Common Vulnerabilities and Exposures identifier.
-        *   **Severity Score (CVSS):** The Common Vulnerability Scoring System base score, categorized as Critical, High, Medium, or Low.
-        *   **Dependency Path:** Identifies the vulnerable artifact. To determine the *full* dependency path (depth) within the project (e.g., `your-project -> library-A -> vulnerable-library-X`), cross-reference the artifact name with the `dependency-tree.txt` file.
-        *   **Remediation Suggestion:** Proposed actions to mitigate the vulnerability, often including upgrade recommendations to patched versions.
+## Companies who use Secor
 
-## Understanding Dependency Paths
+  * [Airbnb](https://www.airbnb.com)
+  * [Appsflyer](https://www.appsflyer.com)
+  * [Branch](http://branch.io)
+  * [Coupang](https://www.coupang.com)
+  * [Credit Karma](https://www.creditkarma.com)
+  * [GO-JEK](http://gojekengineering.com/)
+  * [Nextperf](http://www.nextperf.com)
+  * [PayTM](https://www.paytm.com)
+  * [Pinterest](https://www.pinterest.com)
+  * [Rakuten](http://techblog.rakuten.co.jp/)
+  * [Robinhood](http://www.robinhood.com/)
+  * [Simplaex](https://www.simplaex.com/)
+  * [Skyscanner](http://www.skyscanner.net)
+  * [Strava](https://www.strava.com)
+  * [TiVo](https://www.tivo.com)
+  * [VarageSale](http://www.varagesale.com)
+  * [Viacom](http://www.viacom.com)
+  * [Wego](https://www.wego.com)
+  * [Yelp](http://www.yelp.com)
+  * [Zalando](http://www.zalando.com)
+  * [Zapier](https://www.zapier.com)
 
-The `vulnerability-summary.txt` report will indicate the directly vulnerable artifact (e.g., `commons-collections-3.2.1.jar`). To understand how this artifact is brought into the project (its full dependency path and whether it's a direct or transitive dependency), you should cross-reference the artifact's filename/groupId/artifactId with the `dependency-tree.txt` file. Search for the vulnerable artifact within `dependency-tree.txt` to see its complete path from the project's root.
+## Help
 
-## Non-Destructive Scanning
+If you have any questions or comments, you can reach us at [secor-users@googlegroups.com](https://groups.google.com/forum/#!forum/secor-users)
 
-This audit strictly adheres to the non-destructive scanning policy. The provided scripts only read project configuration and generate reports; no project source files or `pom.xml` are modified, and no changes are committed or pushed to the repository.
+[Kafka]:http://kafka.apache.org/
+[Amazon S3]:http://aws.amazon.com/s3/
+[Microsoft Azure Blob Storage]:https://azure.microsoft.com/en-us/services/storage/blobs/
+[S3]:http://aws.amazon.com/s3/
+[Google Cloud Storage]:https://cloud.google.com/storage/
+[eventual consistency]:http://docs.aws.amazon.com/AmazonS3/latest/dev/Introduction.html#ConsistencyMode
+[Hive]:http://hive.apache.org/
+[Ostrich]: https://github.com/twitter/ostrich
+[Micrometer]: https://micrometer.io
+[OpenTSDB]: http://opentsdb.net/
+[Qubole]: http://www.qubole.com/
+[statsD]: https://github.com/etsy/statsd/
+[Openstack Swift]: http://swift.openstack.org
+[Protocol Buffers]: https://developers.google.com/protocol-buffers/
+[Parquet]: https://parquet.apache.org/
